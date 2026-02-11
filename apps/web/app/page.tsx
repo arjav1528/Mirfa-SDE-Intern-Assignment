@@ -1,66 +1,179 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useState } from "react";
+
+const getApiUrl = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export default function Home() {
+  const [partyId, setPartyId] = useState("");
+  const [payloadJson, setPayloadJson] = useState('{ "amount": 100, "currency": "AED" }');
+  const [recordId, setRecordId] = useState("");
+  const [encryptedRecord, setEncryptedRecord] = useState<object | null>(null);
+  const [decryptedPayload, setDecryptedPayload] = useState<object | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleEncrypt() {
+    setError(null);
+    setEncryptedRecord(null);
+    setDecryptedPayload(null);
+    let payload: object;
+    try {
+      payload = JSON.parse(payloadJson);
+    } catch {
+      setError("Invalid JSON in payload");
+      return;
+    }
+    if (!partyId.trim()) {
+      setError("partyId is required");
+      return;
+    }
+    try {
+      const res = await fetch(`${getApiUrl()}/tx/encrypt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partyId: partyId.trim(), payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Encryption failed");
+        return;
+      }
+      setRecordId(data.id);
+      setEncryptedRecord(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    }
+  }
+
+  async function handleFetch() {
+    setError(null);
+    setEncryptedRecord(null);
+    setDecryptedPayload(null);
+    const id = recordId.trim();
+    if (!id) {
+      setError("Enter a record id to fetch");
+      return;
+    }
+    try {
+      const res = await fetch(`${getApiUrl()}/tx/${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Not found");
+        return;
+      }
+      setEncryptedRecord(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    }
+  }
+
+  async function handleDecrypt() {
+    setError(null);
+    setDecryptedPayload(null);
+    const id = recordId.trim();
+    if (!id) {
+      setError("Enter a record id to decrypt");
+      return;
+    }
+    try {
+      const res = await fetch(`${getApiUrl()}/tx/${encodeURIComponent(id)}/decrypt`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Decryption failed");
+        return;
+      }
+      setDecryptedPayload(data.payload);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    }
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div style={{ maxWidth: 640, margin: "2rem auto", padding: "0 1rem", fontFamily: "system-ui" }}>
+      <h1 style={{ marginBottom: "1rem" }}>Secure transactions</h1>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: 4 }}>Party ID</label>
+        <input
+          type="text"
+          value={partyId}
+          onChange={(e) => setPartyId(e.target.value)}
+          placeholder="e.g. user-123"
+          style={{ width: "100%", padding: 8, boxSizing: "border-box" }}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </div>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: 4 }}>Payload (JSON)</label>
+        <textarea
+          value={payloadJson}
+          onChange={(e) => setPayloadJson(e.target.value)}
+          rows={4}
+          style={{ width: "100%", padding: 8, boxSizing: "border-box", fontFamily: "monospace" }}
+        />
+      </div>
+
+      <div style={{ marginBottom: "1rem", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" onClick={handleEncrypt} style={{ padding: "8px 16px" }}>
+          Encrypt &amp; Save
+        </button>
+        <button type="button" onClick={handleFetch} style={{ padding: "8px 16px" }}>
+          Fetch
+        </button>
+        <button type="button" onClick={handleDecrypt} style={{ padding: "8px 16px" }}>
+          Decrypt
+        </button>
+      </div>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: 4 }}>Record ID (from Encrypt or type)</label>
+        <input
+          type="text"
+          value={recordId}
+          onChange={(e) => setRecordId(e.target.value)}
+          placeholder="id from Encrypt & Save"
+          style={{ width: "100%", padding: 8, boxSizing: "border-box" }}
+        />
+      </div>
+
+      {error && (
+        <div style={{ color: "crimson", marginBottom: "1rem" }}>{error}</div>
+      )}
+
+      {encryptedRecord && (
+        <div style={{ marginBottom: "1rem" }}>
+          <strong>Encrypted record</strong>
+          <pre style={{
+            background: "#1e1e1e",
+            color: "#e0e0e0",
+            padding: 12,
+            overflow: "auto",
+            fontSize: 12,
+            borderRadius: 6,
+            border: "1px solid #333",
+          }}>
+            {JSON.stringify(encryptedRecord, null, 2)}
+          </pre>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      {decryptedPayload !== null && (
+        <div style={{ marginBottom: "1rem" }}>
+          <strong>Decrypted payload</strong>
+          <pre style={{
+            background: "#1e1e1e",
+            color: "#e0e0e0",
+            padding: 12,
+            overflow: "auto",
+            borderRadius: 6,
+            border: "1px solid #333",
+          }}>
+            {JSON.stringify(decryptedPayload, null, 2)}
+          </pre>
         </div>
-      </main>
+      )}
     </div>
   );
 }
