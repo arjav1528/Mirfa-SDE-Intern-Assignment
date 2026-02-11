@@ -5,7 +5,9 @@ import type { TxSecureRecord } from "@repo/crypto";
 import { encrypt, decrypt } from "@repo/crypto";
 import { config } from "dotenv";
 
-config({ path: path.resolve(process.cwd(), "../../.env") });
+if (!process.env.VERCEL) {
+  config({ path: path.resolve(process.cwd(), "../../.env") });
+}
 
 const PORT = Number(process.env.PORT) || 3001;
 const store = new Map<string, TxSecureRecord>();
@@ -64,7 +66,10 @@ const appPromise = createApp();
 async function handler(req: import("http").IncomingMessage, res: import("http").ServerResponse) {
   const app = await appPromise;
   await app.ready();
-  app.server.emit("request", req, res);
+  const url = req.url || "/";
+  const path = url.startsWith("/api") ? url.slice(4) || "/" : url;
+  const normalizedReq = Object.create(req, { url: { value: path } });
+  app.server.emit("request", normalizedReq, res);
 }
 
 if (!process.env.VERCEL) {
