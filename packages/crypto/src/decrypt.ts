@@ -1,15 +1,15 @@
 import { createDecipheriv } from "node:crypto";
 import type { TxSecureRecord } from "./types.js";
+import { getMasterKey } from "./encrypt.js";
 import { hexToBuffer, validateRecord } from "./validate.js";
 
 const ALG = "aes-256-gcm";
 
-export function decrypt(
-  record: TxSecureRecord,
-  masterKey: Buffer
-): unknown {
+export function decrypt(record: TxSecureRecord): unknown {
   try {
     validateRecord(record);
+
+    const masterKey = getMasterKey();
 
     const dekWrapNonce = hexToBuffer(record.dek_wrap_nonce);
     const dekWrapped = hexToBuffer(record.dek_wrapped);

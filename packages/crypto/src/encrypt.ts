@@ -7,7 +7,7 @@ const NONCE_BYTES = 12;
 const ALG = "aes-256-gcm";
 const MK_VERSION = "v1";
 
-function getMasterKey(): Buffer {
+export function getMasterKey(): Buffer {
 
   const raw = process.env.MASTER_KEY;
   if (!raw || typeof raw !== "string") {
